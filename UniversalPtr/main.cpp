@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <cassert>
 #include "UniversalPtr.h"
+#include <string>
 
 SCENARIO("UniversalPtr can be constructed") {
 	WHEN("default constructed")	{
@@ -95,135 +96,87 @@ SCENARIO("UniversalPtr comparison") {
 	}
 }
 
-/*
-struct Foo
-{
-	virtual ~Foo() = default;
-	virtual void Bar()
-	{
-		std::cout << "Foo::Bar\n";
-	}
-	void ConstBar()const
-	{
-		std::cout << "Foo::ConstBar\n";
-	}
-};
-struct FooEx : public Foo
-{
-	void Bar() override
-	{
-		std::cout << "FooEx::Bar\n";
-	}
-};
+SCENARIO("UniversalPtr Demo") {
+	using namespace std;
 
-struct Client
-{
-	Client(UniversalPtr<Foo> foo)
-		: m_foo(std::move(foo))
-	{
-	}
-	void DoSomething()
-	{
-		m_foo->Bar();
-	}
-private:
-	UniversalPtr<Foo> m_foo;
-};
+	struct IShape {
+		virtual ~IShape() = default;
+		virtual void Draw()const = 0;
+	};
+	struct IShapeFactory {
+		virtual ~IShapeFactory() = default;
+		virtual unique_ptr<IShape> CreateShape(string name) = 0;
+	};
+	struct ShapeFactory : IShapeFactory {
+		struct Rectangle : IShape { 
+			void Draw()const override { cout << "Rectangle\n"; }
+		};
+		struct Circle : IShape {
+			void Draw()const override { cout << "Circle\n"; }
+		};
+		unique_ptr<IShape> CreateShape(string name) override {
+			if (name == "rect") return make_unique<Rectangle>();
+			else if (name == "circle") return make_unique<Circle>();
+			else return nullptr;
+		}
+	};
+	
+	struct Client {
+		Client(UniversalPtr<IShapeFactory> factory):m_factory(move(factory)) {}
+		void WorkWithShapes() {
+			if (auto circle = m_factory->CreateShape("circle")) 
+				circle->Draw();
+			if (auto rect = m_factory->CreateShape("rect"))
+				rect->Draw();
+		}
+	private:
+		UniversalPtr<IShapeFactory> m_factory;
+	};
 
-struct Client2
-{
-	Client2(UniversalPtr<Foo> foo)
-		: m_foo(std::move(foo))
-	{
-	}
-	void DoSomethingElse()
-	{
-		m_foo->Bar();
-		m_foo->Bar();
-	}
-private:
-	UniversalPtr<Foo> m_foo;
-};
-
-struct Client3
-{
-	Client3(UniversalPtr<FILE> file)
-		: m_file(std::move(file))
-	{
-	}
-	void DoSomething()
-	{
-		if (m_file)
-		{
-			fgetc(m_file.get());
+	GIVEN("Unowned Shape Factory") {
+		ShapeFactory factory;
+		THEN("can be used by clients without shorter lifitime") {
+			Client c1(factory);
+			Client c2(&factory);
+			c1.WorkWithShapes();
+			c2.WorkWithShapes();
 		}
 	}
-private:
-	UniversalPtr<FILE> m_file;
-};
 
-int main(int, char* argv[])
-{
-	// Отсутствие владения (ссылка)
-	{
-		Foo foo;
-		Client c(foo);
-		c.DoSomething();
+	GIVEN("Unique ShapeFactory") {
+		auto uniqueFactory = make_unique<ShapeFactory>();
+		THEN("can be passed to a client for exclusive access") {
+			Client client(move(uniqueFactory));
+			CHECK(!uniqueFactory); // moved to the client
+			client.WorkWithShapes();
+		}
 	}
-	// Отсутствие владения (указатель)
-	{
-		Foo foo;
-		Client c(&foo);
-		c.DoSomething();
-	}
-	// Единоличное владение
-	{
-		Client c(std::make_unique<Foo>());
-		c.DoSomething();
-	}
-	// Единоличное владение (пользовательский deleter)
-	{
-		struct FileCloser
-		{
-			void operator()(FILE *file)
-			{ 
-				if (file)
-					fclose(file);
+	GIVEN("Shared ShapeFactory") {
+		auto sharedFactory = make_shared<ShapeFactory>();
+		weak_ptr<IShapeFactory> weakFactory(sharedFactory);
+
+		WHEN("shared among clients") {
+			auto c1 = make_unique<Client>(sharedFactory);
+			auto c2 = make_unique<Client>(sharedFactory);
+			sharedFactory.reset();
+			CHECK(weakFactory.use_count() == 2);
+
+			THEN("increases use count when chlient is copied") {
+				auto client1Copy(*c1);
+				CHECK(weakFactory.use_count() == 3);
+				client1Copy.WorkWithShapes();
 			}
-		};
-		std::unique_ptr<FILE, FileCloser> foo(fopen(argv[0], "rb"));
-		Client3 c(std::move(foo));
-		c.DoSomething();
+			THEN("is deleted when there are no clients") {
+				c1.reset();
+				CHECK(weakFactory.use_count() == 1);
+
+				// c2 still holds the factory via strong reference
+				c2->WorkWithShapes();
+
+				c2.reset();
+				CHECK(weakFactory.use_count() == 0);
+				CHECK(weakFactory.expired());
+			}
+		}
 	}
-	// Совместное владение
-	{
-		auto foo = std::make_shared<Foo>();
-		Client c1(foo);
-		Client2 c2(foo);
-		c1.DoSomething();
-		c2.DoSomethingElse();
-	}
-	{
-		auto sp = std::make_shared<Foo>();
-		UniversalPtr<Foo> p1(sp);
-		UniversalPtr<Foo> p2(sp);
-		assert(p1 == p2);
-		UniversalPtr<Foo> p3;
-		assert(p1 != p3);
-	}
-	{
-		static_assert(std::is_nothrow_default_constructible<UniversalPtr<Foo>>::value, "UniversalPtr is nothrow default constructible");
-		static_assert(std::is_nothrow_copy_constructible<UniversalPtr<Foo>>::value, "UniversalPtr is nothrow copy constructible");
-		static_assert(std::is_nothrow_move_constructible<UniversalPtr<Foo>>::value, "UniversalPtr is nothrow move constructible");
-		static_assert(std::is_nothrow_copy_assignable<UniversalPtr<Foo>>::value, "UniversalPtr is nothrow copy asignable");
-		static_assert(std::is_nothrow_move_assignable<UniversalPtr<Foo>>::value, "UniversalPtr is nothrow move assignable");
-	}
-	{
-		UniversalPtr<const Foo> p1;
-		p1 = std::make_unique<FooEx>();
-		p1 = std::make_shared<FooEx>();
-		p1->ConstBar();
-	}
-	return 0;
 }
-*/
