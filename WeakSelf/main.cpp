@@ -6,88 +6,139 @@
 
 using namespace std;
 using boost::string_view;
+using namespace std::placeholders;
 
+struct Image { /* some image data */ };
+using Callback = function<void(string_view url, unique_ptr<Image> image)>;
+// Loads an image asynchronously
+void LoadImageAsync(string_view url, Callback callback);
 
-
-struct ImageData {};
-
-struct IImageLoader
+namespace
 {
-	using Callback = function<void(string_view url, unique_ptr<ImageData> optData)>;
+map<string, Callback> g_requests;
+void FinishImageLoading(string_view url, unique_ptr<Image> img)
+{
+	auto it = g_requests.find(url.to_string());
+	if (it != g_requests.end())
+	{
+		it->second(url, move(img));
+		g_requests.erase(it);
+	}
+}
+}
 
-	virtual ~IImageLoader() = default;
-
-	virtual void LoadImageAsync(string_view url, Callback callback) = 0;
+struct ImageView
+{
+	void ShowImageAtURL(string_view url)
+	{
+		/* Загрузить изображение асинхронно и вызвать OnImageLoaded */
+	}
+private:
+	void OnImageLoaded(string_view url, unique_ptr<Image> image)
+	{
+		/* Сохранить изображение, обновить контрол */
+	}
+	unique_ptr<Image> m_image;
 };
 
-struct ImageView : enable_shared_from_this<ImageView>
+struct BadImageView
 {
-	ImageView(IImageLoader& loader) :m_loader(loader) {}
-
-	void SetImageUrl(string_view url)
+	void ShowImageAtURL(string_view url)
 	{
-		m_url = url.to_string();
-#if 0
-		weak_ptr<ImageView> weakSelf = shared_from_this();
+		LoadImageAsync(url, [this](auto url, auto img) {
+			OnImageLoaded(url, move(img)); 
+		});
+	}
+private:
+	void OnImageLoaded(string_view url, unique_ptr<Image> image)
+	{
+		m_image = move(image);
+		cout << "Image loaded. URL: " << url << " Addr: " << m_image.get() << "\n";
+	}
+	unique_ptr<Image> m_image;
+};
 
-		m_loader.LoadImageAsync(url, [weakSelf](auto url, auto data) {
+// Image View implementation using explicit weak self handling
+struct ImageView1 : enable_shared_from_this<ImageView1>
+{
+	static auto Create()
+	{
+		return shared_ptr<ImageView1>(new ImageView1);
+	}
+	void ShowImageAtURL(string_view url)
+	{
+		weak_ptr<ImageView1> weakSelf = shared_from_this();
+		LoadImageAsync(url, [weakSelf](auto url, auto data) {
 			if (auto strongSelf = weakSelf.lock())
 				strongSelf->OnImageLoaded(url, move(data));
 		});
-#else
-		using namespace /*ph =*/ std::placeholders;
-		m_loader.LoadImageAsync(url, BindWeakPtr(&ImageView::OnImageLoaded, shared_from_this(), _1, _2));
-#endif
 	}
-
 private:
-	void OnImageLoaded(string_view url, unique_ptr<ImageData> data)
+	ImageView1() = default;
+	void OnImageLoaded(string_view url, unique_ptr<Image> image)
 	{
-		if (m_url == url)
-		{
-			m_imageData = move(data);
-			RedrawImage();
-		}
+		m_image = move(image);
+		cout << "Image loaded. URL: " << url << " Addr: " << m_image.get() << "\n";
 	}
-
-	void RedrawImage()
-	{
-		cout << "Redrawing image " << m_imageData.get() << " from URL " << m_url << "\n";
-	}
-
-	IImageLoader& m_loader;
-	std::string m_url;
-	unique_ptr<ImageData> m_imageData;
+	unique_ptr<Image> m_image;
 };
 
-struct MockLoader final : IImageLoader
+// Image View implementation using explicit BindWeakPtr helper
+struct ImageView2 : enable_shared_from_this<ImageView2>
 {
-	void LoadImageAsync(string_view url, Callback callback) override
+	static auto Create()
 	{
-		m_requests.emplace(url, callback);
+		return shared_ptr<ImageView2>(new ImageView2);
 	}
-
-	void SetImageData(string_view url, unique_ptr<ImageData> data)
+	void ShowImageAtURL(string_view url)
 	{
-		auto it = m_requests.find(url.to_string());
-		if (it != m_requests.end())
-		{
-			it->second(url, move(data));
-			m_requests.erase(it);
-		}
+		LoadImageAsync(url, BindWeakPtr(&ImageView2::OnImageLoaded, shared_from_this() /* or weak_from_this() since C++17 */, _1, _2));
 	}
-	map<string, Callback> m_requests;
+private:
+	ImageView2() = default;
+	void OnImageLoaded(string_view url, unique_ptr<Image> image)
+	{
+		m_image = move(image);
+		cout << "Image loaded. URL: " << url << " Addr: " << m_image.get() << "\n";
+	}
+	unique_ptr<Image> m_image;
 };
 
 int main()
 {
-	MockLoader ldr;
+#if 0 // This code will cause UB
+	{
+		auto imgView = make_shared<BadImageView>();
+		imgView->ShowImageAtURL("image1.png");
+		FinishImageLoading("image1.png", make_unique<Image>());
+		
+		imgView->ShowImageAtURL("image2.png");
+		imgView.reset();
+		FinishImageLoading("image2.png", make_unique<Image>()); // will cause UB by calling method on deleted object
+	}
+#endif
+	{
+		auto imgView = ImageView1::Create();
+		imgView->ShowImageAtURL("image1.png");
+		FinishImageLoading("image1.png", make_unique<Image>());
 
-	auto imgView1 = make_shared<ImageView>(ldr);
-	auto imgView2 = make_shared<ImageView>(ldr);
-	imgView1->SetImageUrl("image1.png");
-	imgView2->SetImageUrl("image2.png");
-	ldr.SetImageData("image2.png", make_unique<ImageData>());
-	imgView1.reset();
-	ldr.SetImageData("image1.png", make_unique<ImageData>());
+		imgView->ShowImageAtURL("image2.png");
+		imgView.reset();
+		FinishImageLoading("image2.png", make_unique<Image>()); // will ignore loaded image
+	}
+	{
+		auto imgView = ImageView2::Create();
+		imgView->ShowImageAtURL("image1.png");
+		FinishImageLoading("image1.png", make_unique<Image>());
+
+		imgView->ShowImageAtURL("image2.png");
+		imgView.reset();
+		FinishImageLoading("image2.png", make_unique<Image>()); // will ignore loaded image
+	}
 }
+
+void LoadImageAsync(string_view url, Callback callback)
+{
+	g_requests.emplace(url, callback);
+}
+
