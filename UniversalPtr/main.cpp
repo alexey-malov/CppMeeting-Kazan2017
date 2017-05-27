@@ -161,7 +161,7 @@ SCENARIO("UniversalPtr Demo") {
 			sharedFactory.reset();
 			CHECK(weakFactory.use_count() == 2);
 
-			THEN("increases use count when chlient is copied") {
+			THEN("increases use count when client is copied") {
 				auto client1Copy(*c1);
 				CHECK(weakFactory.use_count() == 3);
 				client1Copy.WorkWithShapes();
