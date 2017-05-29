@@ -146,16 +146,19 @@ decltype(auto) ToRef()
 
 void Indexing()
 {
+	using ConstPersonRef = reference_wrapper<const Person>;
 	cout << "Sorted people with initial indices\n";
 	{
-		using IndexedPerson = pair<Person, size_t>;
-		vector<IndexedPerson> indexedPeople;
+		using IndexedPersonRef = pair<ConstPersonRef, size_t>;
+
+		vector<IndexedPersonRef> indexedPeople;
+		indexedPeople.reserve(people.size());
 
 		for (size_t i = 0; i < people.size(); ++i) {
 			indexedPeople.emplace_back(people[i], i + 1);
 		}
-		sort(indexedPeople.begin(), indexedPeople.end(), [](auto& lhs, auto & rhs) { 
-			return lhs.first.name < rhs.first.name; 
+		sort(indexedPeople.begin(), indexedPeople.end(), [](auto& lhs, auto & rhs) {
+			return lhs.first.get().name < rhs.first.get().name; 
 		});
 		for (size_t i = 0; i < indexedPeople.size(); ++i) {
 			cout << indexedPeople[i].second << ". " << indexedPeople[i].first << "\n";
@@ -163,19 +166,24 @@ void Indexing()
 	}
 	cout << "Sorted people with initial indices\n";
 	{
-		using ConstPersonRef = reference_wrapper<const Person>;
-
 		auto indexedPeople = people | transformed(ToRef()) | indexed(1);
 		using IndexedPersonRef = decltype(indexedPeople)::value_type;
 
-		vector<IndexedPersonRef> peopleToSort(indexedPeople.begin(), indexedPeople.end());
+		vector<IndexedPersonRef> peopleToSort;
+		peopleToSort.reserve(people.size());
+		peopleToSort.assign(indexedPeople.begin(), indexedPeople.end());
 
-		auto ByName = [](auto & lhs, auto & rhs) { return lhs.value().get().name < rhs.value().get().name; };
-		sort(peopleToSort, ByName);
+		auto ByName = [](auto & lhs, auto & rhs) { 
+			return lhs.value().get().name < rhs.value().get().name; 
+		};
 
 		auto ToStringWithIndex = [](auto & person) {
-			ostringstream out; out << person.index() << ". " << person.value(); return out.str();
+			ostringstream out;
+			out << person.index() << ". " << person.value();
+			return out.str();
 		};
+
+		sort(peopleToSort, ByName);
 
 		boost::transform(peopleToSort, ostream_iterator<string>(cout, "\n"), ToStringWithIndex);
 	}
