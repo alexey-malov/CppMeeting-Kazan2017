@@ -10,6 +10,7 @@
 #include <boost/range/adaptor/formatted.hpp>
 #include <boost/range/adaptor/indexed.hpp>
 #include <boost/range/algorithm/copy.hpp>
+#include <boost/algorithm/cxx11/any_of.hpp>
 #include <boost/range/algorithm/transform.hpp>
 #include <boost/range/algorithm/max_element.hpp>
 #include <boost/range/algorithm/sort.hpp>
@@ -20,6 +21,7 @@ using boost::copy;
 using boost::max_element;
 using boost::sort;
 using boost::transform;
+using boost::algorithm::any_of;
 
 enum class Gender : uint8_t { Male, Female };
 
@@ -189,32 +191,38 @@ void Indexing()
 	}
 }
 
+void AnyOf()
+{
+	{
+		bool hasWomenOlderThan30 = false;
+		for (size_t i = 0; i < people.size(); ++i) {
+			if (people[i].age > 30 && people[i].gender == Gender::Female) {
+				hasWomenOlderThan30 = true;
+				break;
+			}
+		}
+		if (hasWomenOlderThan30)
+			cout << "There are women older than 30\n";
+		else
+			cout << "There are no women above 30\n";
+	}
+	{
+		auto olderThan = [](int age) {
+			return [=](auto& person) { return person.age > age; }; 
+		};
+		auto isFemale = [](auto& person) { return person.gender == Gender::Female; };
+		if (any_of(people | filtered(olderThan(30)), isFemale))
+			cout << "There are women older than 30\n";
+		else
+			cout << "There are no women above 30\n";
+	}
+}
+
 int main()
 {
-	//WriteToStdout();
-	//FindTheOldestOne();
-	//SelectPeopleByAgeAndGender();
+	WriteToStdout();
+	FindTheOldestOne();
+	SelectPeopleByAgeAndGender();
 	Indexing();
-/*
-
-	auto ageInRange = [](int minAge, int maxAge) {
-		return [=](const Person & p) { return p.age >= minAge && p.age < maxAge; };
-	};
-
-	auto genderIs = [](Gender g) {
-		return [g](const Person& p) { return p.gender == g; };
-	};
-
-	auto selectedPeople = people
-		| filtered(ageInRange(16, 32))
-		| filtered(genderIs(Gender::Female));
-
-	copy(selectedPeople, ostream_iterator<Person>(cout, "\n"));
-
-	for (auto & person : people) {
-		if ((person.age >= 16 && person.age < 32) &&
-			(person.gender == Gender::Female)) {
-			cout << person << "\n";
-		}
-	}*/
+	AnyOf();
 }
