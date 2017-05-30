@@ -32,7 +32,7 @@ namespace detail
 	};
 }
 
-/// Weak this binding of non-const methods on weak_ptr
+/// Generates a forwarding call wrapper for non-const member function. Member function will be called if pThis is not expired.
 template<typename ReturnType, typename ClassType, typename... Params, typename... Args>
 decltype(auto) BindWeakPtr(ReturnType(ClassType::*memberFn)(Params... args), std::weak_ptr<ClassType> pThis, Args... args)
 {
@@ -42,7 +42,7 @@ decltype(auto) BindWeakPtr(ReturnType(ClassType::*memberFn)(Params... args), std
 	return std::bind(invoker, args...);
 }
 
-/// Weak this binding of const methods on weak_ptr
+/// Generates a forwarding call wrapper for const member function. Member function will be called if pThis is not expired.
 template<typename ReturnType, typename ClassType, typename... Params, typename... Args>
 decltype(auto) BindWeakPtr(ReturnType(ClassType::*memberFn)(Params... args) const, std::weak_ptr<ClassType> pThis, Args... args)
 {
@@ -52,27 +52,14 @@ decltype(auto) BindWeakPtr(ReturnType(ClassType::*memberFn)(Params... args) cons
 	return std::bind(invoker, args...);
 }
 
-/// Weak this binding of non-const methods via shared_ptr
 template<typename ReturnType, typename ClassType, typename... Params, typename... Args>
 decltype(auto) BindWeakPtr(ReturnType(ClassType::*memberFn)(Params... args), std::shared_ptr<ClassType> const& pThis, Args... args)
 {
 	return BindWeakPtr(memberFn, std::weak_ptr<ClassType>(pThis), args...);
-		/*
-	using Invoker = detail::WeakInvoker<ReturnType, ClassType, false, Params...>;
-
-	Invoker invoker(memberFn, std::weak_ptr<ClassType>(pThis));
-	return std::bind(invoker, args...); */
 }
 
-/// Weak this binding of const methods via shared_ptr
 template<typename ReturnType, typename ClassType, typename... Params, typename... Args>
 decltype(auto) BindWeakPtr(ReturnType(ClassType::*memberFn)(Params... args) const, std::shared_ptr<ClassType> const& pThis, Args... args)
 {
 	return BindWeakPtr(memberFn, std::weak_ptr<ClassType>(pThis), args...);
-
-	/*
-	using Invoker = detail::WeakInvoker<ReturnType, ClassType, true, Params...>;
-
-	Invoker invoker(memberFn, std::weak_ptr<ClassType>(pThis));
-	return std::bind(invoker, args...); */
 }
