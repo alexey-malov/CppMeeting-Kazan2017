@@ -4,6 +4,7 @@
 #include <functional>
 #include <iostream>
 #include <sstream>
+#include <map>
 #define BOOST_RESULT_OF_USE_DECLTYPE
 #include <boost/range/adaptor/filtered.hpp>
 #include <boost/range/adaptor/transformed.hpp>
@@ -14,6 +15,7 @@
 #include <boost/range/algorithm/transform.hpp>
 #include <boost/range/algorithm/max_element.hpp>
 #include <boost/range/algorithm/sort.hpp>
+#include <boost/range/adaptor/map.hpp>
 
 using namespace std;
 using namespace boost::adaptors;

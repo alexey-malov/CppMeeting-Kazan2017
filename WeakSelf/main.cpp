@@ -104,6 +104,29 @@ private:
 	unique_ptr<Image> m_image;
 };
 
+struct ImageView3
+{
+	ImageView3() :m_impl(make_shared<Impl>()) {}
+	void ShowImageAtURL(string_view url)
+	{
+		m_impl->ShowImageAtURL(url);
+	}
+private:
+	struct Impl : enable_shared_from_this<Impl> {
+		void ShowImageAtURL(string_view url) {
+			LoadImageAsync(url, BindWeakPtr(&Impl::OnImageLoaded, shared_from_this() /* or weak_from_this() since C++17 */, _1, _2));
+		}
+		void OnImageLoaded(string_view url, unique_ptr<Image> image)
+		{
+			m_image = move(image);
+			cout << "Image loaded. URL: " << url << " Addr: " << m_image.get() << "\n";
+		}
+		unique_ptr<Image> m_image;
+	};
+
+	shared_ptr<Impl> m_impl;
+};
+
 int main()
 {
 #if 0 // This code will cause UB
@@ -133,6 +156,17 @@ int main()
 
 		imgView->ShowImageAtURL("image2.png");
 		imgView.reset();
+		FinishImageLoading("image2.png", make_unique<Image>()); // will ignore loaded image
+	}
+	{
+		{
+			ImageView3 imgView;
+			imgView.ShowImageAtURL("image1.png");
+			FinishImageLoading("image1.png", make_unique<Image>());
+
+			imgView.ShowImageAtURL("image2.png");
+
+		}
 		FinishImageLoading("image2.png", make_unique<Image>()); // will ignore loaded image
 	}
 }
