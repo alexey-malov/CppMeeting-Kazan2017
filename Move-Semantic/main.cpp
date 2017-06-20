@@ -61,10 +61,10 @@ private:
 int main() {
   {
     Widget1 w1("Name");
-    Widget w("Name");
+    Widget w2("Name");
 	string widgetName = "w1";
 	
-	Widget w(widgetName + "1");
+	Widget w3(widgetName + "1");
   }
 
   {

@@ -1,41 +1,67 @@
-#include <unordered_map>
+#include <fstream>
+#include <functional>
+#include <iostream>
+#include <iterator>
 #include <map>
 #include <memory>
+#include <string>
 
 using namespace std;
-struct Key
-{
 
+string GetFileContent(const char *fileName);
+
+class DocumentStorage : public enable_shared_from_this<DocumentStorage> {
+  using StringPtr = shared_ptr<string>;
+  using StringWeakPtr = weak_ptr<string>;
+  map<string, StringWeakPtr> m_items;
+public:
+  using DocumentContent = function<string()>;
+
+  DocumentContent GetDocumentContent(const string &fileName) {
+    StringPtr content;
+    auto it = m_items.find(fileName);
+    if (it != m_items.end()) {
+      content = it->second.lock();
+    }
+
+    if (!content) {
+      weak_ptr<DocumentStorage> weakSelf = shared_from_this();
+      auto deleter = [weakSelf, fileName](string *s) {
+        delete s;
+        if (auto strongSelf = weakSelf.lock()) {
+          strongSelf->m_items.erase(fileName);
+        }
+      };
+      content.reset(new string(GetFileContent(fileName.c_str())), deleter);
+      m_items.insert_or_assign(fileName, content);
+    }
+
+    return [content] { return *content; };
+  }
 };
-using KeyPtr = shared_ptr<Key>;
-struct Value
-{
 
-};
-using ValuePtr = shared_ptr<Value>;
+int main() {
+  auto storage = make_shared<DocumentStorage>();
+  {
+    auto content1 = storage->GetDocumentContent("main.cpp");
+    cout << content1().length() << endl;
+    auto content2 = storage->GetDocumentContent("main.cpp");
+    cout << content2().length() << endl;
+  }
+  {
+    auto content1 = storage->GetDocumentContent("main.cpp");
+    cout << content1().length() << endl;
+  }
+}
 
-struct SimpleCache
-{
-	ValuePtr GetValueForKey(const KeyPtr& key)
-	{
-		auto it = m_items.find(key);
-		if (it != m_items.end())
-		{
-			return it->second;
-		}
-		else
-		{
-			return nullptr;
-		}
+string GetFileContent(const char *fileName) {
+	cout << "Loading file content " << fileName << "\n";
+	ifstream strm(fileName);
+	string text;
+	string line;
+	while (getline(strm, line)) {
+		text.append(line);
+		text.append("\n");
 	}
-private:
-	using ValueWeakPtr = weak_ptr<Value>;
-	using KeyWeakPtr = weak_ptr<Key>;
-
-	map<KeyWeakPtr, ValuePtr, std::owner_less<KeyWeakPtr>> m_items;
-};
-
-int main()
-{
-
+	return text;
 }
