@@ -124,7 +124,7 @@ int main()
 #if HAS_BOOST
 	{
 		boost::variant<int, double> bv = 42;
-		if (auto pInt = variant_utils::get_if<int>(&bv))
+		if (auto pInt = boost::get<int>(&bv))
 			cout << "Variant holds int value of " << *pInt << "\n";
 		else if (auto pDouble = variant_utils::get_if<double>(&bv))
 			cout << "Variant holds double value of " << *pDouble << "\n";

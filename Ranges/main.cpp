@@ -1,3 +1,7 @@
+#pragma warning (push)
+#pragma warning(disable:4996)
+#include <algorithm>
+#pragma warning(pop)
 #include <vector>
 #include <string>
 #include <iterator>
@@ -16,6 +20,7 @@
 #include <boost/range/algorithm/max_element.hpp>
 #include <boost/range/algorithm/sort.hpp>
 #include <boost/range/adaptor/map.hpp>
+#include <boost/phoenix.hpp>
 
 using namespace std;
 using namespace boost::adaptors;
@@ -24,6 +29,7 @@ using boost::max_element;
 using boost::sort;
 using boost::transform;
 using boost::algorithm::any_of;
+using namespace boost::phoenix::arg_names;
 
 enum class Gender : uint8_t { Male, Female };
 
@@ -31,6 +37,7 @@ struct Person {
 	string name;
 	short age;
 	Gender gender;
+	int salary;
 };
 
 ostream& operator<<(ostream& out, const Person& p)
@@ -43,15 +50,15 @@ ostream& operator<<(ostream& out, const Person& p)
 }
 
 const vector<Person> people = {
-	{ "Ivan", 25, Gender::Male },
-	{ "Peter", 35, Gender::Male },
-	{ "Masha", 24, Gender::Female },
-	{ "Dasha", 33, Gender::Female },
-	{ "Ivan", 37, Gender::Male },
-	{ "Sveta", 28, Gender::Female },
-	{ "Ivan", 20, Gender::Male },
-	{ "Constantine", 23, Gender::Male },
-	{ "Eugene", 35, Gender::Male },
+	{ "Ivan", 25, Gender::Male, 15'000 },
+	{ "Peter", 35, Gender::Male, 35'000 },
+	{ "Masha", 24, Gender::Female, 20'000 },
+	{ "Dasha", 33, Gender::Female, 50'000 },
+	{ "Ivan", 37, Gender::Male, 50'000 },
+	{ "Sveta", 28, Gender::Female, 45'000 },
+	{ "Ivan", 20, Gender::Male, 30'000 },
+	{ "Constantine", 23, Gender::Male, 35'000 },
+	{ "Eugene", 35, Gender::Male, 40'000 },
 };
 
 void WriteToStdout() {
@@ -220,6 +227,36 @@ void AnyOf()
 	}
 }
 
+void Transform()
+{
+	int numbers[] = {1, 0, 5, 3, -4, -3, 2, 5};
+	{
+		vector<string> strings;
+		for (size_t i = 0; i < sizeof(numbers) / sizeof(numbers[0]); ++i) {
+			if (numbers[i] > 0)
+				strings.push_back(to_string(numbers[i]));
+		}
+	}
+	{
+		vector<string> strings;
+		for (auto n: numbers) {
+			if (n > 0)
+				strings.push_back(to_string(n));
+		}
+	}
+	{
+		vector<string> strings;
+		auto ToString = [](int i) { return to_string(i); };
+		auto IsPositive = [](int i) {return i > 0; };
+		transform(numbers | filtered(IsPositive), back_inserter(strings), ToString);
+	}
+	{
+		vector<string> strings;
+		auto ToString = [](int i) { return to_string(i); };
+		boost::transform(numbers | filtered(arg1 > 0), back_inserter(strings), ToString);
+	}
+}
+
 int main()
 {
 	WriteToStdout();
@@ -227,4 +264,5 @@ int main()
 	SelectPeopleByAgeAndGender();
 	Indexing();
 	AnyOf();
+	Transform();
 }

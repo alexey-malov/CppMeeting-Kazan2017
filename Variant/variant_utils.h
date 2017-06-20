@@ -29,9 +29,9 @@ template <class T, class variant_type>
 inline std::add_pointer_t<T> get_if(variant_type *pv)
 {
 	std::add_pointer_t<T> ptr = nullptr;
-	if (pv && (variant_index_v<variant_type, T> == pv->which()))
+	if (pv)
 	{
-		ptr = &boost::get<T>(*pv);
+		ptr = boost::get<T>(&pv);
 	}
 	return ptr;
 }
@@ -42,9 +42,9 @@ template <class T, class variant_type>
 inline std::add_pointer_t<const T> get_if(const variant_type *pv)
 {
 	std::add_pointer_t<const T> ptr = nullptr;
-	if (pv && (variant_index_v<variant_type, T> == pv->which()))
+	if (pv)
 	{
-		ptr = &boost::get<const T>(*pv);
+		ptr = boost::get<const T>(&pv);
 	}
 	return ptr;
 }
